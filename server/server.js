@@ -11,9 +11,11 @@ import cartRouter from "./routes/cartRoute.js";
 import addressRouter from "./routes/addressRoute.js";
 import orderRouter from "./routes/orderRoute.js";
 import { stripeWebhooks } from "./controllers/orderController.js";
+import { swaggerUi, swaggerSpec } from "./Swagger.js";
+
 
 const app = express();
-const port =process.env.PORT || 4000; 
+const port = process.env.PORT || 4000;
 
 await connectDB();
 await connectCloudinary();
@@ -21,12 +23,15 @@ await connectCloudinary();
 // Allow multiple origins
 const allowedOrigins = ['http://localhost:5173']
 
-app.post('/stripe', express.raw({type: "application/json"}), stripeWebhooks )
+app.post('/stripe', express.raw({ type: "application/json" }), stripeWebhooks)
 
 // Middleware configuration
 app.use(express.json())
 app.use(cookieParser())
-app.use(cors({origin :allowedOrigins, credentials: true}))
+app.use(cors({ origin: allowedOrigins, credentials: true }))
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 
 app.get('/', (req, res) => res.send('API is working fine'))
 app.use('/api/user', userRouter)
@@ -38,4 +43,6 @@ app.use('/api/order', orderRouter)
 
 app.listen(port, () => {
     console.log(`server is running on http://localhost:${port}`)
+    console.log(`Swagger Docs available at http://localhost:${port}/api-docs`);
+
 })

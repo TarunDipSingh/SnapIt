@@ -1,7 +1,7 @@
 import Order from "../models/order.js"
 import Product from "../models/product.js"
-import stripe from "stripe";
-import User  from "../models/User.js"
+import Stripe from "stripe";
+import User from "../models/User.js"
 
 // Place order Stripe : api/order/stripe
 
@@ -39,9 +39,9 @@ export const placeOrderStripe = async (req, res) => {
 
         // Stripe Gateway Initialise
 
-        const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY)
+        const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY)
 
-        // Create line items for line
+        // Create line items for stripe
 
         const line_items = productData.map((item) => {
             return {
@@ -77,20 +77,19 @@ export const placeOrderStripe = async (req, res) => {
 // Stripe Webhook to Verify Payment Action : /stripe
 export const stripeWebhooks = async (req, res) => {
     // Stripe Gateway intialisation  
-    const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY)
-
+    const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY)
     const sig = req.headers["stripe-signature"]
     let event;
 
     try {
-        event = stripeInstance.webhooks.cconstructEvent(
+        event = stripeInstance.webhooks.constructEvent(
             req.body,
             sig,
             process.env.STRIPE_WEBHOOK_SECRET
         )
 
     } catch (error) {
-        res.status(400).send(`Webhook Error: ${error.message}`)
+       return res.status(400).send(`Webhook Error: ${error.message}`)
     }
 
     // handle the event
@@ -100,7 +99,7 @@ export const stripeWebhooks = async (req, res) => {
             const paymentIntentId = paymentIntent.id;
 
             // Getting Session Metadata
-            const session = await stripeInstance.checkout.session.llist({
+            const session = await stripeInstance.checkout.sessions.list({
                 payment_intent: paymentIntentId,
             })
 
@@ -113,16 +112,16 @@ export const stripeWebhooks = async (req, res) => {
         }
 
         case "payment_intent.payment_failed": {
-             const paymentIntent = event.data.object;
+            const paymentIntent = event.data.object;
             const paymentIntentId = paymentIntent.id;
 
             // Getting Session Metadata
-            const session = await stripeInstance.checkout.session.llist({
+            const session = await stripeInstance.checkout.sessions.list({
                 payment_intent: paymentIntentId,
             })
 
-            const { orderID } = session.data[0].metadata
-            await Order.findByIdAndUpdate(orderId)
+            const { orderId } = session.data[0].metadata
+            await Order.findByIdAndDelete(orderId)
             break;
         }
 
@@ -130,6 +129,7 @@ export const stripeWebhooks = async (req, res) => {
             console.error(`Unheandled event type ${event.type}`)
             break;
     }
+    response.json({received: true})
 }
 
 // Place order COD : api/order/cod
@@ -171,7 +171,7 @@ export const getUserOrders = async (req, res) => {
         const { userId } = req.body
         const orders = await Order.find({
             userId,
-            $or: [{ paymentType: "COD" }, { isPaid: true }]
+            $or: [{ paymentType: "COD" }, { paymentType: "Online" }, { isPaid: true }]
         }).populate("items.product address").sort({ createdAt: -1 })
 
         res.json({ success: true, orders })
